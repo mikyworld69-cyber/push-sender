@@ -1,4 +1,18 @@
+import express from "express";
+import cors from "cors";
+import webpush from "web-push";
+import config from "./config.js";
+
+const app = express();
+app.use(cors());
 app.use(express.json());
+
+// Configurar VAPID
+webpush.setVapidDetails(
+  config.vapid.subject,
+  config.vapid.publicKey,
+  config.vapid.privateKey
+);
 
 // Test básico
 app.get("/", (req, res) => {
@@ -52,6 +66,7 @@ app.post("/send_push", async (req, res) => {
 
   res.json({ ok: true, results });
 });
-app.get("/send_push", (req, res) => {
-  res.json({ ok: true, message: "send_push GET OK" });
-});
+
+// Render requiere que escuchemos en este puerto
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Push sender running on port ${port}`));
