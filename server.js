@@ -92,13 +92,19 @@ app.post("/send_push", async (req, res) => {
       });
 
     } catch (error) {
-      console.error("Error enviando push a:", s.endpoint, error.message);
-      results.push({
-        endpoint: s.endpoint,
-        success: false,
-        reason: error.message
-      });
-    }
+  console.error("Error enviando push a:", s.endpoint);
+  console.error("StatusCode:", error.statusCode);
+  console.error("Response body:", error.body || error.message);
+
+  results.push({
+    endpoint: s.endpoint,
+    success: false,
+    statusCode: error.statusCode || null,
+    body: error.body || null,
+    reason: error.message
+  });
+}
+
   }
 
   return res.json({ ok: true, results });
