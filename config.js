@@ -1,5 +1,4 @@
 export default {
-  // Debe coincidir con el que uses en Strato (/config/push_remote.php)
   sharedSecret: "43534534gdggr5646487867gfghff",
 
   vapid: {
