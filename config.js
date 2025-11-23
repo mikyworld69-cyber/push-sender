@@ -4,6 +4,6 @@ export default {
   vapid: {
   subject: "mailto:info@iappsweb.com",
   publicKey: "BKeTNaLfcsCBf0MqBYpUdbGv5dN0kdkHu_rfrdqGLmKPsa1nH1SUfSsNiA_IUbWjvYFIoBSTVky6mNdTCOFFw_k",
-  privateKey: "5X8PCAHdcwrWl-Io926rsE7oZ7BcbzQy3RietAHYfjJg_OHxUxELuo-8NQC5dlWDORKUeNwXo6LL0"
+  privateKey: "abvJDe46TEa_SOqLmRhp_itnHsiZpkAy4--L0Vv1mbA"
   }
 };
