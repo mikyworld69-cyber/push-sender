@@ -14,27 +14,32 @@ webpush.setVapidDetails(
   config.vapid.privateKey
 );
 
-// Test básico
+// Test raíz
 app.get("/", (req, res) => {
   res.json({ status: "Push Sender OK 🚀" });
 });
 
-// Endpoint real que recibe datos desde Strato
+// Test GET para /send_push (solo para comprobar ruta)
+app.get("/send_push", (req, res) => {
+  res.json({ ok: true, message: "send_push GET OK" });
+});
+
+// Endpoint real que usará Strato (POST)
 app.post("/send_push", async (req, res) => {
   const { secret, title, body, url, subscriptions } = req.body;
 
   if (secret !== config.sharedSecret) {
-    return res.status(403).json({ error: "No autorizado" });
+    return res.status(403).json({ error: "No autorizado (secret incorrecto)" });
   }
 
-  if (!subscriptions || subscriptions.length === 0) {
-    return res.status(400).json({ error: "No hay suscripciones" });
+  if (!subscriptions || !Array.isArray(subscriptions) || subscriptions.length === 0) {
+    return res.status(400).json({ error: "No hay suscripciones válidas en el payload" });
   }
 
   const payload = JSON.stringify({
-    title,
-    body,
-    url
+    title: title || "Notificación",
+    body: body || "",
+    url: url || "/"
   });
 
   const results = [];
@@ -44,7 +49,10 @@ app.post("/send_push", async (req, res) => {
       const response = await webpush.sendNotification(
         {
           endpoint: s.endpoint,
-          keys: { p256dh: s.p256dh, auth: s.auth }
+          keys: {
+            p256dh: s.p256dh,
+            auth: s.auth
+          }
         },
         payload
       );
@@ -67,6 +75,7 @@ app.post("/send_push", async (req, res) => {
   res.json({ ok: true, results });
 });
 
-// Render requiere que escuchemos en este puerto
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Push sender running on port ${port}`));
+app.listen(port, () => {
+  console.log(`Push sender running on port ${port}`);
+});
