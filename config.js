@@ -3,7 +3,7 @@ export default {
 
   vapid: {
   subject: "mailto:info@iappsweb.com",
-  publicKey: "BKeTNaLfcsCBf0MqBYpUdbGv5dN0kdkHu_rfrdqGLmKPsa1nH1SUfSsNiA_IUbWjvYFIoBSTVky6mNdTCOFFw_k",
-  privateKey: "abvJDe46TEa_SOqLmRhp_itnHsiZpkAy4--L0Vv1mbA"
+  publicKey: "BGYyjAQ_XU8zUtLjRJ2QOz0CpkSJTELs_vX-miTBA-geDih7D8id9GC1C487J6Sqx912kRO7fJtSJHMpUzFMNJk",
+  privateKey: "oFfzvXBiOAzWR8_bCX6elcL9XtGPK46OgP9BdONu0_w"
   }
 };
