@@ -1,137 +1,52 @@
 import express from "express";
-import cors from "cors";
 import webpush from "web-push";
-import config from "./config.js";
+import cors from "cors";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ==========================
-//  CONFIGURAR VAPID
-// ==========================
-
 const vapidKeys = {
   publicKey: "BGYyjAQ_XU8zUtLjRJ2QOz0CpkSJTELs_vX-miTBA-geDih7D8id9GC1C487J6Sqx912kRO7fJtSJHMpUzFMNJk",
-  privateKey: "abvJDe46TEa_SOqLmRhp_itnHsiZpkAy4--L0Vv1mbA"
+  privateKey: "oFfzvXBiOAzWR8_bCX6elcL9XtGPK46OgP9BdONu0_w"
 };
 
 webpush.setVapidDetails(
-  config.vapid.subject,
-  config.vapid.publicKey,
-  config.vapid.privateKey
+  "mailto:info@iappsweb.com",
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
 );
 
-// ==========================
-//  RUTA RAÍZ (TEST)
-// ==========================
-
-app.get("/", (req, res) => {
-  res.json({
-    status: "Push Sender OK 🚀",
-    port: process.env.PORT || 3000
-  });
-});
-
-// ==========================
-//  RUTA /send_push (GET -> test)
-// ==========================
-
-app.get("/send_push", (req, res) => {
-  res.json({
-    ok: true,
-    message: "send_push GET OK (servidor listo para recibir POST)"
-  });
-});
-
-// ==========================
-//  RUTA /send_push (POST -> envío real desde Strato)
-// ==========================
-
 app.post("/send_push", async (req, res) => {
-  const { secret, title, body, url, subscriptions } = req.body || {};
+  const { secret, title, body, url, subscriptions } = req.body;
 
-  console.log("POST /send_push recibido");
-  console.log("Body:", JSON.stringify(req.body));
-
-  // 1. Comprobar shared secret
-  if (secret !== config.sharedSecret) {
-    console.log("Secret incorrecto:", secret);
-    return res.status(403).json({ error: "No autorizado (secret incorrecto)" });
+  if (secret !== "43534534gdggr5646487867gfghff") {
+    return res.status(403).json({ error: "Invalid secret" });
   }
 
-  // 2. Validar suscripciones
-  if (!subscriptions || !Array.isArray(subscriptions) || subscriptions.length === 0) {
-    console.log("Sin suscripciones válidas en el payload");
-    return res.status(400).json({ error: "No hay suscripciones válidas en el payload" });
+  if (!subscriptions || subscriptions.length === 0) {
+    return res.json({ ok: false, msg: "No subscriptions" });
   }
 
-  // 3. Payload de la notificación
-  const payload = JSON.stringify({
-  title: req.body.title,
-  body: req.body.body,
-  url:  req.body.url
-  });
+  const payload = JSON.stringify({ title, body, url });
+  const results = []; // <<-- ESTO EVITA EL ERROR
 
-
-  // 4. Enviar notificación a cada suscripción
-  for (const s of subscriptions) {
+  for (const sub of subscriptions) {
     try {
-      const response = await webpush.sendNotification(
-        {
-          endpoint: s.endpoint,
-          keys: {
-            p256dh: s.p256dh,
-            auth: s.auth
-          }
-        },
-        payload
-      );
-
-      console.log("Notificación enviada OK a:", s.endpoint);
+      await webpush.sendNotification(sub, payload);
+      results.push({ endpoint: sub.endpoint, success: true });
+    } catch (err) {
       results.push({
-        endpoint: s.endpoint,
-        success: true,
-        status: response.statusCode
+        endpoint: sub.endpoint,
+        success: false,
+        error: err.message
       });
-
-    } catch (error) {
-  console.error("Error enviando push a:", s.endpoint);
-  console.error("StatusCode:", error.statusCode);
-  console.error("Response body:", error.body || error.message);
-
-  results.push({
-    endpoint: s.endpoint,
-    success: false,
-    statusCode: error.statusCode || null,
-    body: error.body || null,
-    reason: error.message
-  });
-}
-
+    }
   }
 
-  return res.json({ ok: true, results });
+  res.json({ ok: true, results });
 });
 
-// ==========================
-//  CATCH-ALL PARA OTRAS RUTAS
-// ==========================
-
-app.all("*", (req, res) => {
-  res.json({
-    ok: false,
-    message: "Ruta no definida en push-sender",
-    method: req.method,
-    path: req.path
-  });
-});
-
-// ==========================
-//  ARRANCAR SERVIDOR
-// ==========================
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Push sender (web-push) running on port ${port}`);
+app.listen(10000, () => {
+  console.log("Servidor push escuchando en puerto 10000");
 });
