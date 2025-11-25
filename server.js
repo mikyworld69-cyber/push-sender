@@ -11,6 +11,11 @@ app.use(express.json());
 //  CONFIGURAR VAPID
 // ==========================
 
+const vapidKeys = {
+  publicKey: "BGYyjAQ_XU8zUtLjRJ2QOz0CpkSJTELs_vX-miTBA-geDih7D8id9GC1C487J6Sqx912kRO7fJtSJHMpUzFMNJk",
+  privateKey: "abvJDe46TEa_SOqLmRhp_itnHsiZpkAy4--L0Vv1mbA"
+};
+
 webpush.setVapidDetails(
   config.vapid.subject,
   config.vapid.publicKey,
