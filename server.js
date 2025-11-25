@@ -63,12 +63,11 @@ app.post("/send_push", async (req, res) => {
 
   // 3. Payload de la notificación
   const payload = JSON.stringify({
-    title: title || "Notificación",
-    body: body || "",
-    url: url || "/"
+  title: req.body.title,
+  body: req.body.body,
+  url:  req.body.url
   });
 
-  const results = [];
 
   // 4. Enviar notificación a cada suscripción
   for (const s of subscriptions) {
