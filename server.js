@@ -1,14 +1,18 @@
-const express = require("express");
-const webpush = require("web-push");
-const mysql = require("mysql2/promise");
-const config = require("./config");
+// ===============================================
+// PUSH SENDER — ES MODULE VERSION (Render Node 22)
+// ===============================================
 
+import express from "express";
+import webpush from "web-push";
+import mysql from "mysql2/promise";
+import config from "./config.js";
+
+// Crear app Express
 const app = express();
-
 app.use(express.json());
 
 // ==========================
-// CONFIG VAPID KEYS
+// CONFIG VAPID
 // ==========================
 webpush.setVapidDetails(
     config.vapid.subject,
@@ -17,21 +21,20 @@ webpush.setVapidDetails(
 );
 
 // ==========================
-// CONEXIÓN A TU MISMA BD
+// POOL DE CONEXIÓN A MySQL
 // ==========================
 const db = await mysql.createPool({
     host: "database-5018992042.webspace-host.com",
     user: "dbu4029641",
-    password: "*******",
+    password: "********",   // pon tu password real
     database: "dbs14956516"
 });
 
 // ==========================
-// ENDPOINT SEND
+// ENDPOINT /send
 // ==========================
 app.get("/send", async (req, res) => {
     try {
-        // Leer suscriptores
         const [subs] = await db.query("SELECT * FROM push_subscriptions");
 
         if (subs.length === 0) {
@@ -40,13 +43,14 @@ app.get("/send", async (req, res) => {
 
         const payload = JSON.stringify({
             title: req.query.titulo || "Notificación",
-            body: req.query.mensaje || "Hola Mike",
+            body: req.query.mensaje || "Hola Mike 👋",
             icon: "/tu-proyecto-cupones/public/icon-192.png",
             url: "/tu-proyecto-cupones/public/panel_usuario.php"
         });
 
         const resultados = [];
 
+        // Enviar push a cada suscripción
         for (const s of subs) {
             try {
                 await webpush.sendNotification(
@@ -69,7 +73,7 @@ app.get("/send", async (req, res) => {
                     error: err.body
                 });
 
-                // si falla → eliminar suscripción caducada
+                // Si está caducada → borrarla
                 await db.query("DELETE FROM push_subscriptions WHERE id = ?", [s.id]);
             }
         }
@@ -86,8 +90,8 @@ app.get("/send", async (req, res) => {
 });
 
 // ==========================
-// ARRANCAR SERVIDOR
+// INICIAR SERVIDOR
 // ==========================
 app.listen(config.server.port, () => {
-    console.log("Push Sender listo en puerto", config.server.port);
+    console.log("Push Sender activo en puerto:", config.server.port);
 });
