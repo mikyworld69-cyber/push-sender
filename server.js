@@ -11,6 +11,9 @@ import config from "./config.js";
 const app = express();
 app.use(express.json());
 
+console.log("PUBLIC KEY:", config.vapid.publicKey);
+console.log("PRIVATE KEY:", config.vapid.privateKey);
+
 // ==========================
 // CONFIG VAPID
 // ==========================
