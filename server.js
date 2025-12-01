@@ -1,52 +1,93 @@
-import express from "express";
-import webpush from "web-push";
-import cors from "cors";
+const express = require("express");
+const webpush = require("web-push");
+const mysql = require("mysql2/promise");
+const config = require("./config");
 
 const app = express();
-app.use(cors());
+
 app.use(express.json());
 
-const vapidKeys = {
-  publicKey: "BGYyjAQ_XU8zUtLjRJ2QOz0CpkSJTELs_vX-miTBA-geDih7D8id9GC1C487J6Sqx912kRO7fJtSJHMpUzFMNJk",
-  privateKey: "oFfzvXBiOAzWR8_bCX6elcL9XtGPK46OgP9BdONu0_w"
-};
-
+// ==========================
+// CONFIG VAPID KEYS
+// ==========================
 webpush.setVapidDetails(
-  "mailto:info@iappsweb.com",
-  vapidKeys.publicKey,
-  vapidKeys.privateKey
+    config.vapid.subject,
+    config.vapid.publicKey,
+    config.vapid.privateKey
 );
 
-app.post("/send_push", async (req, res) => {
-  const { secret, title, body, url, subscriptions } = req.body;
-
-  if (secret !== "43534534gdggr5646487867gfghff") {
-    return res.status(403).json({ error: "Invalid secret" });
-  }
-
-  if (!subscriptions || subscriptions.length === 0) {
-    return res.json({ ok: false, msg: "No subscriptions" });
-  }
-
-  const payload = JSON.stringify({ title, body, url });
-  const results = []; // <<-- ESTO EVITA EL ERROR
-
-  for (const sub of subscriptions) {
-    try {
-      await webpush.sendNotification(sub, payload);
-      results.push({ endpoint: sub.endpoint, success: true });
-    } catch (err) {
-      results.push({
-        endpoint: sub.endpoint,
-        success: false,
-        error: err.message
-      });
-    }
-  }
-
-  res.json({ ok: true, results });
+// ==========================
+// CONEXIÓN A TU MISMA BD
+// ==========================
+const db = await mysql.createPool({
+    host: "database-5018992042.webspace-host.com",
+    user: "dbu4029641",
+    password: "*******",
+    database: "dbs14956516"
 });
 
-app.listen(10000, () => {
-  console.log("Servidor push escuchando en puerto 10000");
+// ==========================
+// ENDPOINT SEND
+// ==========================
+app.get("/send", async (req, res) => {
+    try {
+        // Leer suscriptores
+        const [subs] = await db.query("SELECT * FROM push_subscriptions");
+
+        if (subs.length === 0) {
+            return res.json({ ok: true, enviados: 0, msg: "No hay suscriptores" });
+        }
+
+        const payload = JSON.stringify({
+            title: req.query.titulo || "Notificación",
+            body: req.query.mensaje || "Hola Mike",
+            icon: "/tu-proyecto-cupones/public/icon-192.png",
+            url: "/tu-proyecto-cupones/public/panel_usuario.php"
+        });
+
+        const resultados = [];
+
+        for (const s of subs) {
+            try {
+                await webpush.sendNotification(
+                    {
+                        endpoint: s.endpoint,
+                        keys: {
+                            auth: s.auth,
+                            p256dh: s.p256dh
+                        }
+                    },
+                    payload
+                );
+
+                resultados.push({ endpoint: s.endpoint, ok: true });
+
+            } catch (err) {
+                resultados.push({
+                    endpoint: s.endpoint,
+                    ok: false,
+                    error: err.body
+                });
+
+                // si falla → eliminar suscripción caducada
+                await db.query("DELETE FROM push_subscriptions WHERE id = ?", [s.id]);
+            }
+        }
+
+        res.json({
+            ok: true,
+            enviados: resultados.length,
+            resultados
+        });
+
+    } catch (e) {
+        res.json({ ok: false, error: e.message });
+    }
+});
+
+// ==========================
+// ARRANCAR SERVIDOR
+// ==========================
+app.listen(config.server.port, () => {
+    console.log("Push Sender listo en puerto", config.server.port);
 });
