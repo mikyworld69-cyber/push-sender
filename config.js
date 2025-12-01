@@ -1,10 +1,18 @@
-export default {
-  sharedSecret: "43534534gdggr5646487867gfghff",
+// ===============================================
+// CONFIGuración global del servicio Push Sender
+// iAppsWeb · Render Node Service
+// ===============================================
 
-  vapid: {
-  subject: "mailto:info@iappsweb.com",
-  $VAPID_PUBLIC  = "BF9_KKtwjRzBqjH9hOeYdHqQcw9gMwN2J3c-nFvR8Lcl-uWlyY2gUOjUz0OnXjGKqnqW9NPUZ_7y9MGiYFtS1hA";
-  $VAPID_PRIVATE = "fPjPuvNTpTJS7fE4yF0JMoS61u13xPXuVmy27ZUW2mI";
+module.exports = {
+    vapid: {
+        publicKey: process.env.VAPID_PUBLIC,
+        privateKey: process.env.VAPID_PRIVATE,
+        subject: "mailto:admin@iappsweb.com"
+    },
 
-  }
+    server: {
+        port: process.env.PORT || 3000,
+        host: "0.0.0.0"
+    }
 };
+
