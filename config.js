@@ -4,8 +4,8 @@
 
 export default {
     vapid: {
-        publicKey: process.env.VAPID_PUBLIC?.trim() || "",
-        privateKey: process.env.VAPID_PRIVATE?.trim() || "",
+        export const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+        export const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
         subject: "mailto:admin@iappsweb.com"
     },
 
