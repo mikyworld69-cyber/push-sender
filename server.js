@@ -1,9 +1,18 @@
+console.log("DEBUG PG ENV:", {
+  host: process.env.PG_HOST,
+  user: process.env.PG_USER,
+  pass: process.env.PG_PASS ? "***" : "(empty)",
+  db: process.env.PG_DB
+});
+
 import express from "express";
 import cors from "cors";
 import webpush from "web-push";
 import pkg from "pg";
 
 const { Pool } = pkg;
+
+ssl: { rejectUnauthorized: false }
 
 // =============================================================
 // 1) VAPID KEYS
