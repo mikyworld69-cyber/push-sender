@@ -156,3 +156,43 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log("Servidor Push en puerto", PORT);
 });
+console.log("SW cargado ✔");
+
+self.addEventListener("install", () => {
+    console.log("SW instalado ✔");
+    self.skipWaiting();
+});
+
+self.addEventListener("activate", () => {
+    console.log("SW activado ✔");
+    self.clients.claim();
+});
+
+// RECIBIR PUSH
+self.addEventListener("push", e => {
+    let data = {};
+    try { data = e.data.json(); }
+    catch { data = { body: e.data.text() }; }
+
+    const options = {
+        body: data.body,
+        icon: data.icon,
+        badge: data.badge || data.icon,
+        data: data.url,
+        vibrate: [100, 30, 100]
+    };
+
+    e.waitUntil(
+        self.registration.showNotification(data.title, options)
+    );
+});
+
+// CLICK
+self.addEventListener("notificationclick", e => {
+    e.notification.close();
+
+    e.waitUntil(
+        clients.openWindow(e.notification.data)
+    );
+});
+
