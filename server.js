@@ -1,27 +1,26 @@
+// =====================================================
+// PUSH SERVER - VERSION POSTGRESQL COMPLETA Y FUNCIONAL
+// =====================================================
+
 import express from "express";
 import cors from "cors";
 import webpush from "web-push";
-import mysql from "mysql2/promise";
+import pkg from "pg";
 
-// =============================================================
-// 1) VARIABLES DE ENTORNO (Render)
-// =============================================================
+// PostgreSQL Client
+const { Pool } = pkg;
+
+// =====================================================
+// 1) VAPID KEYS
+// =====================================================
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-
-const DB_HOST = process.env.DB_HOST;
-const DB_USER = process.env.DB_USER;
-const DB_PASS = process.env.DB_PASS;
-const DB_NAME = process.env.DB_NAME;
 
 console.log("PUBLIC KEY:", VAPID_PUBLIC_KEY);
 console.log("PRIVATE KEY:", VAPID_PRIVATE_KEY);
 
-// =============================================================
-// 2) VALIDACIÓN VAPID
-// =============================================================
 if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.error("❌ ERROR: Faltan claves VAPID en Render.");
+    console.error("❌ ERROR: Faltan claves VAPID");
     process.exit(1);
 }
 
@@ -31,41 +30,46 @@ webpush.setVapidDetails(
     VAPID_PRIVATE_KEY
 );
 
-// =============================================================
-// 3) EXPRESS APP
-// =============================================================
+// =====================================================
+// 2) EXPRESS
+// =====================================================
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// =============================================================
-// 4) MYSQL (STRATO) – Crear pool
-// =============================================================
-let db;
+// =====================================================
+// 3) POSTGRESQL POOL
+// =====================================================
+console.log("DEBUG PG ENV:", {
+    host: process.env.DB_HOST,
+    user: process.env.DB_USERNAME,
+    pass: "***",
+    db: process.env.DB_DATABASE
+});
 
-async function conectarDB() {
-    try {
-        db = await mysql.createPool({
-            host: DB_HOST,
-            user: DB_USER,
-            password: DB_PASS,
-            database: DB_NAME,
-        });
+const db = new Pool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+    port: 5432,
+    ssl: { rejectUnauthorized: false }
+});
 
-        console.log("MySQL STRATO conectado ✔");
-
-    } catch (err) {
-        console.error("❌ ERROR MySQL:", err);
+// Test de conexión
+db.connect()
+    .then(() => console.log("PostgreSQL conectado ✔"))
+    .catch(err => {
+        console.error("❌ Error al conectar PG:", err);
         process.exit(1);
-    }
-}
+    });
 
-// =============================================================
-// 5) FUNCIONES PUSH
-// =============================================================
+// =====================================================
+// 4) FUNCIONES NOTIFICACIÓN
+// =====================================================
 async function obtenerSuscripciones() {
-    const [rows] = await db.query("SELECT * FROM push_subscriptions");
-    return rows;
+    const res = await db.query("SELECT * FROM push_subscriptions");
+    return res.rows;
 }
 
 async function enviarNotificacionATodos(payload) {
@@ -75,101 +79,81 @@ async function enviarNotificacionATodos(payload) {
     for (const s of subs) {
         try {
             const result = await webpush.sendNotification(
-                {
-                    endpoint: s.endpoint,
-                    keys: {
-                        p256dh: s.p256dh,
-                        auth: s.auth,
-                    },
-                },
+                { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth }},
                 JSON.stringify(payload)
             );
 
             resultados.push({
                 endpoint: s.endpoint,
                 http: result.statusCode,
-                success: result.statusCode >= 200 && result.statusCode < 300,
+                success: result.statusCode >= 200 && result.statusCode < 300
             });
 
         } catch (err) {
             resultados.push({
                 endpoint: s.endpoint,
                 success: false,
-                http: err.statusCode || 0,
-                error: err.body,
+                error: err.body || err.message
             });
 
-            // Si la suscripción está muerta → se elimina
-            if (err.statusCode === 410 || err.statusCode === 404) {
-                await db.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [s.endpoint]);
+            if (err.statusCode >= 400) {
+                await db.query(
+                    "DELETE FROM push_subscriptions WHERE endpoint = $1",
+                    [s.endpoint]
+                );
             }
         }
     }
 
-    return {
-        enviados: subs.length,
-        resultados,
-    };
+    return { enviados: subs.length, resultados };
 }
 
-// =============================================================
-// 6) RUTAS
-// =============================================================
+// =====================================================
+// 5) RUTAS
+// =====================================================
 
-// ✔ Test
 app.get("/", (req, res) => {
-    res.send("Servidor Push funcionando ✔");
+    res.send("Servidor Push PostgreSQL ✔ funcionando");
 });
 
-// ✔ LISTA SUSCRIPTORES
+// LISTAR SUSCRIPTORES
 app.get("/suscriptores", async (req, res) => {
-    try {
-        const data = await obtenerSuscripciones();
-        res.json(data);
-    } catch (e) {
-        console.error("Error /suscriptores:", e);
-        res.status(500).json({ ok: false });
-    }
+    const subs = await obtenerSuscripciones();
+    res.json(subs);
 });
 
-// ✔ ENVÍO POR GET
+// ENVIAR NOTIFICACIÓN (GET)
 app.get("/send", async (req, res) => {
     const payload = {
-        title: req.query.title || "Test",
-        body: req.query.message || "Mensaje desde GET",
+        title: req.query.title || "Notificación",
+        body: req.query.message || "Mensaje desde Push Server",
         icon: "https://iappsweb.com/tu-proyecto-cupones/public/icons/icon-192.png",
-        url: "/",
+        url: "/"
     };
 
-    const out = await enviarNotificacionATodos(payload);
-    res.json(out);
+    const resultado = await enviarNotificacionATodos(payload);
+    res.json(resultado);
 });
 
-// ✔ ENVÍO POR POST
+// ENVIAR NOTIFICACIÓN (POST)
 app.post("/send", async (req, res) => {
-    const { title, message, icon, url } = req.body;
-
     const payload = {
-        title: title || "Notificación",
-        body: message || "Mensaje desde servidor push",
-        icon: icon || "https://iappsweb.com/tu-proyecto-cupones/public/icons/icon-192.png",
-        url: url || "/",
+        title: req.body.title,
+        body: req.body.message,
+        icon: req.body.icon,
+        url: req.body.url
     };
 
-    const out = await enviarNotificacionATodos(payload);
-    res.json(out);
+    const resultado = await enviarNotificacionATodos(payload);
+    res.json(resultado);
 });
 
-// =============================================================
-// 7) INICIAR SERVIDOR
-// =============================================================
-async function iniciar() {
-    await conectarDB();
+// =====================================================
+// 6) INICIAR SERVER
+// =====================================================
 
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, "0.0.0.0", () => {
-        console.log("Servidor Push en puerto", PORT);
-    });
-}
+const PORT = process.env.PORT || 10000;
 
-iniciar();
+app.listen(PORT, "0.0.0.0", () => {
+    console.log("Servidor Push en puerto", PORT);
+});
