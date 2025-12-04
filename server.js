@@ -1,23 +1,16 @@
 import express from "express";
 import cors from "cors";
 import webpush from "web-push";
-import pkg from "pg";
-const { Pool } = pkg;
+import mysql from "mysql2/promise";
 
-// =============================================================
+// ===============================
 // 1) VAPID KEYS
-// =============================================================
+// ===============================
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
 console.log("PUBLIC KEY:", VAPID_PUBLIC_KEY);
 console.log("PRIVATE KEY:", VAPID_PRIVATE_KEY);
-
-// Validación
-if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.error("❌ ERROR: Faltan claves VAPID en Render.");
-    process.exit(1);
-}
 
 webpush.setVapidDetails(
     "mailto:admin@iappsweb.com",
@@ -25,41 +18,35 @@ webpush.setVapidDetails(
     VAPID_PRIVATE_KEY
 );
 
-// =============================================================
+// ===============================
 // 2) EXPRESS
-// =============================================================
+// ===============================
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// =============================================================
-// 3) POSTGRES PLANETSCALE
-// =============================================================
-const db = new Pool({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    user: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
-    ssl: { rejectUnauthorized: false }
-});
+// ===============================
+// 3) MYSQL - STRATO
+// ===============================
 
-async function checkDB() {
-    try {
-        await db.query("SELECT NOW()");
-        console.log("PostgreSQL conectado ✔");
-    } catch (err) {
-        console.error("❌ Error al conectar a PostgreSQL", err);
-        process.exit(1);
-    }
+let db;
+async function initDB() {
+
+    db = await mysql.createPool({
+        host: "database-5018992042.webspace-host.com",
+        user: "dbu4029641",
+        password: "Mike91078@@",
+        database: "dbs14956516",
+    });
+
+    console.log("MySQL STRATO conectado ✔");
 }
 
-// =============================================================
-// 4) FUNCIONES DB
-// =============================================================
+// ===============================
+// 4) FUNCIONES PUSH
+// ===============================
 async function obtenerSuscripciones() {
-    const q = `SELECT id, endpoint, p256dh, auth FROM push_subs ORDER BY id DESC;`;
-    const { rows } = await db.query(q);
+    const [rows] = await db.query("SELECT * FROM push_subscriptions");
     return rows;
 }
 
@@ -72,7 +59,7 @@ async function enviarNotificacionATodos(payload) {
             const result = await webpush.sendNotification(
                 {
                     endpoint: s.endpoint,
-                    keys: { p256dh: s.p256dh, auth: s.auth }
+                    keys: { p256dh: s.p256dh, auth: s.auth },
                 },
                 JSON.stringify(payload)
             );
@@ -80,56 +67,53 @@ async function enviarNotificacionATodos(payload) {
             resultados.push({
                 endpoint: s.endpoint,
                 http: result.statusCode,
-                success: result.statusCode >= 200
+                success: result.statusCode >= 200 && result.statusCode < 300
             });
 
-        } catch (err) {
+        } catch (error) {
+
             resultados.push({
                 endpoint: s.endpoint,
-                http: err.statusCode || 0,
+                http: error.statusCode || 0,
                 success: false,
-                raw: err.body || String(err)
+                error: error.body
             });
 
-            // borrar suscripciones inválidas
-            if (err.statusCode >= 400) {
-                await db.query("DELETE FROM push_subs WHERE endpoint = $1", [s.endpoint]);
+            if (error.statusCode >= 400) {
+                await db.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [s.endpoint]);
             }
         }
     }
 
-    return {
-        enviados: subs.length,
-        resultados
-    };
+    return { enviados: subs.length, resultados };
 }
 
-// =============================================================
+// ===============================
 // 5) RUTAS
-// =============================================================
+// ===============================
 app.get("/", (req, res) => {
-    res.json({ ok: true, msg: "Push Server activo con PostgreSQL" });
+    res.send("Servidor Push OK ✔");
 });
 
 app.get("/send", async (req, res) => {
     const payload = {
-        title: req.query.title || "Título por defecto",
-        body: req.query.message || "Mensaje por defecto",
-        icon: "https://iappsweb.com/tu-proyecto-cupones/public/icon-192.png",
-        url: "/",
+        title: req.query.title || "Notificación",
+        body: req.query.message || "Mensaje",
+        icon: "https://iappsweb.com/tu-proyecto-cupones/public/icons/icon-192.png",
+        url: "/"
     };
 
     const resultado = await enviarNotificacionATodos(payload);
     res.json(resultado);
 });
 
-// =============================================================
-// 6) INICIAR SERVIDOR
-// =============================================================
+// ===============================
+// 6) INICIO
+// ===============================
 async function iniciar() {
-    await checkDB();
+    await initDB();
+    const PORT = process.env.PORT || 10000;
 
-    const PORT = process.env.PORT || 3000;
     app.listen(PORT, "0.0.0.0", () => {
         console.log("Servidor Push en puerto", PORT);
     });
