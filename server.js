@@ -27,6 +27,16 @@ webpush.setVapidDetails(
     VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY
 );
+// PANEL ADMIN: LISTAR SUSCRIPTORES
+app.get("/suscriptores", async (req, res) => {
+    try {
+        const subs = await obtenerSuscripciones();
+        res.json(subs);
+    } catch (err) {
+        console.error("Error /suscriptores:", err);
+        res.status(500).json({ ok: false, error: "server_error" });
+    }
+});
 
 // =============================================================
 // 2) CONEXIÓN A PLANETSCALE POSTGRES
