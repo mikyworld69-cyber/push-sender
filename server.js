@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import webpush from "web-push";
-import mysql from "mysql2/promise";
+import pkg from "pg";
+const { Pool } = pkg;
 
 // =============================================================
 // 1) VAPID KEYS
@@ -12,12 +13,12 @@ const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 console.log("PUBLIC KEY:", VAPID_PUBLIC_KEY);
 console.log("PRIVATE KEY:", VAPID_PRIVATE_KEY);
 
+// Validación
 if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.error("❌ ERROR: Faltan claves VAPID en Render");
+    console.error("❌ ERROR: Faltan claves VAPID en Render.");
     process.exit(1);
 }
 
-// Configurar WebPush
 webpush.setVapidDetails(
     "mailto:admin@iappsweb.com",
     VAPID_PUBLIC_KEY,
@@ -25,29 +26,40 @@ webpush.setVapidDetails(
 );
 
 // =============================================================
-// 2) CONEXIÓN MYSQL (STRATO)
+// 2) EXPRESS
 // =============================================================
-let db;
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-async function initDB() {
-    db = await mysql.createPool({
-        host: process.env.MYSQL_HOST,
-        user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASS,
-        database: process.env.MYSQL_DB,
-        waitForConnections: true,
-        connectionLimit: 5,
-        queueLimit: 0
-    });
+// =============================================================
+// 3) POSTGRES PLANETSCALE
+// =============================================================
+const db = new Pool({
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    user: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+    ssl: { rejectUnauthorized: false }
+});
 
-    console.log("MySQL STRATO conectado ✔");
+async function checkDB() {
+    try {
+        await db.query("SELECT NOW()");
+        console.log("PostgreSQL conectado ✔");
+    } catch (err) {
+        console.error("❌ Error al conectar a PostgreSQL", err);
+        process.exit(1);
+    }
 }
 
 // =============================================================
-// 3) Funciones de notificaciones
+// 4) FUNCIONES DB
 // =============================================================
 async function obtenerSuscripciones() {
-    const [rows] = await db.query("SELECT * FROM push_subscriptions");
+    const q = `SELECT id, endpoint, p256dh, auth FROM push_subs ORDER BY id DESC;`;
+    const { rows } = await db.query(q);
     return rows;
 }
 
@@ -60,7 +72,7 @@ async function enviarNotificacionATodos(payload) {
             const result = await webpush.sendNotification(
                 {
                     endpoint: s.endpoint,
-                    keys: { p256dh: s.p256dh, auth: s.auth },
+                    keys: { p256dh: s.p256dh, auth: s.auth }
                 },
                 JSON.stringify(payload)
             );
@@ -68,63 +80,43 @@ async function enviarNotificacionATodos(payload) {
             resultados.push({
                 endpoint: s.endpoint,
                 http: result.statusCode,
-                success: result.statusCode >= 200 && result.statusCode < 300
+                success: result.statusCode >= 200
             });
 
-        } catch (error) {
+        } catch (err) {
             resultados.push({
                 endpoint: s.endpoint,
-                http: error.statusCode || 0,
+                http: err.statusCode || 0,
                 success: false,
-                error: error.body
+                raw: err.body || String(err)
             });
 
-            // Eliminar suscripciones inválidas
-            if (error.statusCode >= 400) {
-                await db.query(
-                    "DELETE FROM push_subscriptions WHERE endpoint = ?",
-                    [s.endpoint]
-                );
+            // borrar suscripciones inválidas
+            if (err.statusCode >= 400) {
+                await db.query("DELETE FROM push_subs WHERE endpoint = $1", [s.endpoint]);
             }
         }
     }
 
-    return { enviados: subs.length, resultados };
+    return {
+        enviados: subs.length,
+        resultados
+    };
 }
 
 // =============================================================
-// 4) EXPRESS
+// 5) RUTAS
 // =============================================================
-const app = express();
-app.use(cors());
-app.use(express.json());
-
 app.get("/", (req, res) => {
-    res.send("Servidor PUSH iAppsWeb activo ✔");
+    res.json({ ok: true, msg: "Push Server activo con PostgreSQL" });
 });
 
-// GET: enviar notificación sencilla
 app.get("/send", async (req, res) => {
     const payload = {
-        title: req.query.title || "Título de prueba",
-        body: req.query.message || "Mensaje de prueba",
-        icon: "https://iappsweb.com/tu-proyecto-cupones/public/icons/icon-192.png",
-        url: "/"
-    };
-
-    const resultado = await enviarNotificacionATodos(payload);
-    res.json(resultado);
-});
-
-// POST: enviar notificación personalizada
-app.post("/send", async (req, res) => {
-    const { title, message, icon, url } = req.body;
-
-    const payload = {
-        title: title || "Notificación",
-        body: message || "Mensaje enviado desde el servidor",
-        icon: icon || "https://iappsweb.com/tu-proyecto-cupones/public/icons/icon-192.png",
-        url: url || "/"
+        title: req.query.title || "Título por defecto",
+        body: req.query.message || "Mensaje por defecto",
+        icon: "https://iappsweb.com/tu-proyecto-cupones/public/icon-192.png",
+        url: "/",
     };
 
     const resultado = await enviarNotificacionATodos(payload);
@@ -132,16 +124,15 @@ app.post("/send", async (req, res) => {
 });
 
 // =============================================================
-// 5) INICIAR SERVIDOR
+// 6) INICIAR SERVIDOR
 // =============================================================
-async function start() {
-    await initDB();
+async function iniciar() {
+    await checkDB();
 
     const PORT = process.env.PORT || 3000;
-
     app.listen(PORT, "0.0.0.0", () => {
         console.log("Servidor Push en puerto", PORT);
     });
 }
 
-start();
+iniciar();
