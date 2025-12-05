@@ -16,7 +16,7 @@ webpush.setVapidDetails(
 );
 
 // ==============================
-// 2. USAR TUS VARIABLES DB_
+// 2. CONEXIÓN MySQL (PlanetScale)
 // ==============================
 
 console.log("DEBUG DB ENV:", {
@@ -96,7 +96,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-    res.send("Servidor Push ✔ funcionando con PlanetScale via DB_ variables");
+    res.send("Servidor Push ✔ funcionando con PlanetScale");
 });
 
 app.get("/suscriptores", async (req, res) => {
