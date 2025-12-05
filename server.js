@@ -33,21 +33,23 @@ let pool;
 
 async function initDB() {
     pool = await mysql.createPool({
-        host: process.env.DB_HOST,
+        host: process.env.DB_HOST,              // gcp.connect.psdb.cloud
         user: process.env.DB_USERNAME,
         password: process.env.DB_PASSWORD,
         database: process.env.DB_DATABASE,
-        port: process.env.DB_PORT || 3306,
-
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0,
-        connectTimeout: 20000,
+        port: 3306,
 
         ssl: {
-            rejectUnauthorized: false
-        }
+            rejectUnauthorized: true
+        },
+
+        waitForConnections: true,
+        connectionLimit: 5,
+        queueLimit: 0
     });
+
+    console.log("MySQL PlanetScale conectado ✔");
+}
 
     console.log("MySQL STRATO conectado ✔");
 }
