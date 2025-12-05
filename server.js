@@ -33,16 +33,17 @@ let pool;
 
 async function initDB() {
     pool = await mysql.createPool({
-        host: process.env.DB_HOST,          // database-xxxxx.webspace-host.com
-        user: process.env.DB_USERNAME,      // dbu4029641
-        password: process.env.DB_PASSWORD,  // tu pass Strato
-        database: process.env.DB_DATABASE,  // dbs14956516
+        host: process.env.DB_HOST,
+        user: process.env.DB_USERNAME,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_DATABASE,
         port: process.env.DB_PORT || 3306,
+
         waitForConnections: true,
         connectionLimit: 10,
         queueLimit: 0,
-        connectTimeout: 20000,   // 20 sec
-        acquireTimeout: 20000,
+        connectTimeout: 20000,
+
         ssl: {
             rejectUnauthorized: false
         }
@@ -50,6 +51,7 @@ async function initDB() {
 
     console.log("MySQL STRATO conectado ✔");
 }
+
 
 // ===============================
 // 3) FUNCIONES DB
