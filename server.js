@@ -16,7 +16,7 @@ webpush.setVapidDetails(
 );
 
 // ==============================
-// 2. CONEXIÓN MySQL (PlanetScale)
+// 2. PlanetScale MySQL
 // ==============================
 
 console.log("DEBUG DB ENV:", {
@@ -24,7 +24,7 @@ console.log("DEBUG DB ENV:", {
     user: process.env.DB_USERNAME,
     pass: "***",
     db: process.env.DB_DATABASE,
-    port: process.env.DB_PORT
+    port: process.env.DB_PORT,
 });
 
 let pool;
@@ -36,10 +36,10 @@ async function initDB() {
         password: process.env.DB_PASSWORD,
         database: process.env.DB_DATABASE,
         port: process.env.DB_PORT,
-        ssl: { rejectUnauthorized: true }
+        ssl: { rejectUnauthorized: true },
     });
 
-    console.log("MySQL PlanetScale conectado ✔");
+    console.log("PlanetScale conectado ✔");
 }
 
 // ==============================
@@ -59,7 +59,10 @@ async function enviarNotificacionATodos(payload) {
             const result = await webpush.sendNotification(
                 {
                     endpoint: s.endpoint,
-                    keys: { p256dh: s.p256dh, auth: s.auth }
+                    keys: {
+                        p256dh: s.p256dh,
+                        auth: s.auth,
+                    },
                 },
                 JSON.stringify(payload)
             );
@@ -67,20 +70,21 @@ async function enviarNotificacionATodos(payload) {
             resultados.push({
                 endpoint: s.endpoint,
                 http: result.statusCode,
-                success: result.statusCode >= 200 && result.statusCode < 300
+                success: result.statusCode >= 200 && result.statusCode < 300,
             });
 
         } catch (error) {
-
             resultados.push({
                 endpoint: s.endpoint,
                 http: error.statusCode || 0,
                 success: false,
-                error: error.body
+                error: error.body,
             });
 
             if (error.statusCode >= 400) {
-                await pool.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [s.endpoint]);
+                await pool.query("DELETE FROM push_subscriptions WHERE endpoint = ?", [
+                    s.endpoint,
+                ]);
             }
         }
     }
@@ -96,7 +100,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-    res.send("Servidor Push ✔ funcionando con PlanetScale");
+    res.send("Servidor Push funcionando con PlanetScale ✔");
 });
 
 app.get("/suscriptores", async (req, res) => {
@@ -104,16 +108,19 @@ app.get("/suscriptores", async (req, res) => {
     res.json(subs);
 });
 
+// ==============================
+// ESTE ES TU ENDPOINT /send
+// ==============================
 app.get("/send", async (req, res) => {
     const payload = {
         title: req.query.title || "Notificación",
-        body: req.query.message || "Mensaje",
+        body: req.query.message || "Mensaje desde el servidor Push",
         icon: "https://iappsweb.com/tu-proyecto-cupones/public/icon-192.png",
-        url: "/"
+        url: "/",
     };
 
-    const out = await enviarNotificacionATodos(payload);
-    res.json(out);
+    const resultado = await enviarNotificacionATodos(payload);
+    res.json(resultado);
 });
 
 // ==============================
