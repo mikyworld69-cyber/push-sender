@@ -51,10 +51,6 @@ async function initDB() {
     console.log("MySQL PlanetScale conectado ✔");
 }
 
-    console.log("MySQL STRATO conectado ✔");
-}
-
-
 // ===============================
 // 3) FUNCIONES DB
 // ===============================
